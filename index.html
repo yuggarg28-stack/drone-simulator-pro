@@ -211,6 +211,69 @@
       .dock-btn { font-size:8px; }
     }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after {animation-duration:.01ms !important;transition-duration:.01ms !important;} }
+
+    /* Flight Studio 2.0: always-visible vital gauges, uncluttered map, collapsible rails */
+    #topbar { gap:12px; }
+    #brand { min-width:215px; }
+    #top-vitals { display:flex; flex:0 1 260px; min-width:205px; gap:14px; align-items:center;
+      padding:8px 11px; border:1px solid rgba(116,192,215,.19); border-radius:12px; background:rgba(19,45,63,.60); }
+    .vital-strip-item { flex:1; min-width:0; }
+    .vital-strip-label { display:flex; justify-content:space-between; gap:7px; font-size:9px; font-weight:800;
+      color:#a8d2dc; letter-spacing:.06em; margin-bottom:6px; }
+    .vital-strip-label strong { color:#ecfeff; font-size:11px; font-variant-numeric:tabular-nums; }
+    #top-vitals .meter-track { height:6px; }
+    #top-vitals #battery-status { margin:0; }
+    .sr-only { position:absolute!important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+      clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    #top-status { min-width:0; }
+    #top-status .status-chip { padding:7px 9px; }
+    #minimap-panel { position:sticky; top:0; z-index:2; border-color:rgba(91,242,223,.24); }
+    #left-rail, #right-hud { transition:transform .24s ease,opacity .24s ease,visibility .24s ease; }
+    body.hide-left #left-rail { transform:translateX(calc(-100% - 35px)); opacity:0; visibility:hidden; pointer-events:none; }
+    body.hide-right #right-hud { transform:translateX(calc(100% + 35px)); opacity:0; visibility:hidden; pointer-events:none; }
+    #view-controls { position:fixed; z-index:31; top:96px; left:50%; transform:translateX(-50%);
+      display:flex; align-items:center; gap:5px; border-radius:12px; padding:5px; }
+    .view-btn { display:inline-flex; align-items:center; justify-content:center; border:1px solid transparent; border-radius:8px;
+      padding:7px 11px; background:transparent; color:#c5e0eb; font-size:10px; font-weight:800; white-space:nowrap; }
+    .view-btn:hover { background:rgba(85,156,176,.22); }
+    .view-btn[aria-expanded="false"] { color:#849eae; }
+    .view-btn.primary { background:rgba(86,203,210,.15); border-color:rgba(86,203,210,.23); color:#81f9eb; }
+    .view-btn[aria-pressed="true"] { background:#66e5db; border-color:transparent; color:#09222a; }
+    #fpv-overlay { position:fixed; z-index:5; bottom:90px; left:50%; transform:translateX(-50%);
+      pointer-events:none; display:flex; align-items:center; justify-content:center; gap:13px; max-width:calc(100vw - 30px);
+      color:rgba(222,249,251,.92); padding:7px 11px; border:1px solid rgba(113,196,204,.19); border-radius:9px;
+      background:rgba(7,24,33,.54); backdrop-filter:blur(10px); font:800 10px ui-monospace,Consolas,monospace;
+      letter-spacing:.06em; white-space:nowrap; text-shadow:0 1px 5px #001923; }
+    #fpv-overlay-live { color:#8de9e6; }
+    .tiny-led { display:inline-block; margin-right:5px; border-radius:50%; width:5px; height:5px; background:#61ddcf; }
+    #fpv-overlay-rec { color:#ff9aa8; }
+    #fpv-overlay-rec:not([hidden]) { display:inline; }
+    @media(max-width:1200px) {
+      #brand { min-width:180px; }
+      .brand-sub { font-size:8px; }
+      #top-vitals { flex-basis:210px; min-width:180px; gap:8px; }
+      #top-status .status-chip:first-child { display:none; }
+    }
+    @media(max-width:780px) {
+      #topbar { flex-wrap:wrap; min-height:66px; }
+      #brand { flex:1; min-width:110px; }
+      #top-vitals { order:3; flex:1 1 100%; min-width:0; height:28px; padding:3px 7px; gap:10px; }
+      .vital-strip-label { margin-bottom:3px; font-size:8px; }
+      .vital-strip-label strong { font-size:9px; }
+      #top-vitals .meter-track { height:3px; }
+      #top-status { display:none; }
+      #timer { font-size:10px; }
+      #view-controls { top:105px; padding:4px; gap:0; }
+      .view-btn { padding:6px 8px; font-size:9px; }
+      #left-rail,#right-hud { top:145px; }
+      #fpv-overlay { bottom:71px; font-size:8px; padding:6px 8px; gap:7px; }
+    }
+    @media(max-width:450px) {
+      #view-controls { top:105px; }
+      #fpv-overlay-metrics { display:none; }
+      .view-btn { font-size:8px; padding:5px 7px; }
+      #left-rail,#right-hud { top:142px; }
+    }
   </style>
 </head>
 <body>
@@ -223,6 +286,17 @@
       <span class="brand-glyph" aria-hidden="true"><svg fill="none" viewBox="0 0 32 32"><path d="M16 8v16M8 16h16M7 7l6 6m6 6 6 6M25 7l-6 6m-6 6-6 6" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="4" fill="currentColor"/><circle cx="6" cy="6" r="3" stroke="currentColor" stroke-width="2"/><circle cx="26" cy="6" r="3" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="26" r="3" stroke="currentColor" stroke-width="2"/><circle cx="26" cy="26" r="3" stroke="currentColor" stroke-width="2"/></svg></span>
       <div><div class="brand-title">DRONE<span class="accent">SIM</span> PRO</div><div class="brand-sub">Flight operations studio</div></div>
     </div>
+    <div id="top-vitals" role="group" aria-label="Simulated aircraft vitals">
+      <div class="vital-strip-item" id="battery-panel">
+        <div class="vital-strip-label"><span>BATTERY</span><strong id="battery-percent">100%</strong></div>
+        <div class="meter-track"><div id="battery-fill"></div></div>
+        <span id="battery-status" class="sr-only">Battery Healthy</span>
+      </div>
+      <div class="vital-strip-item" id="health-panel">
+        <div class="vital-strip-label"><span>HEALTH</span><strong id="health-percent">100%</strong></div>
+        <div class="meter-track"><div id="health-fill"></div></div>
+      </div>
+    </div>
     <div id="top-status">
       <span class="status-chip"><i class="led" aria-hidden="true"></i> SIMULATION ACTIVE</span>
       <span id="mode-display" class="status-chip">Normal Mode</span>
@@ -231,20 +305,13 @@
     <div id="timer" aria-label="Mission timer">Time: 0.0s</div>
   </header>
 
+  <nav id="view-controls" class="glass" aria-label="Interface layout controls">
+    <button id="toggle-map" class="view-btn" type="button" aria-controls="left-rail" aria-expanded="true" title="Show or hide navigation sidebar">◈ Navigation</button>
+    <button id="toggle-instruments" class="view-btn" type="button" aria-controls="right-hud" aria-expanded="true" title="Show or hide instrument sidebar">▥ Instruments</button>
+    <button id="toggle-focus" class="view-btn primary" type="button" aria-pressed="false" title="Show only the flight view">⛶ Focus view</button>
+  </nav>
+
   <aside id="left-rail" aria-label="Flight navigation">
-    <section id="vitals-panel" class="hud-panel" aria-label="Aircraft battery and damage health">
-      <h2 class="section-title"><span>Aircraft vitals</span><span class="mini-tag">SIMULATION</span></h2>
-      <div class="vital-item" id="battery-panel">
-        <div class="hud-row"><span>Battery charge</span><span id="battery-percent" class="metric">100%</span></div>
-        <div class="meter-track"><div id="battery-fill"></div></div>
-        <div id="battery-status">Battery Healthy</div>
-      </div>
-      <div class="vital-item">
-        <div class="hud-row"><span>Damage health</span><span id="health-percent" class="metric">100%</span></div>
-        <div class="meter-track"><div id="health-fill"></div></div>
-      </div>
-      <p class="vitals-hint">Both indicators currently represent the simulated aircraft, not hardware telemetry.</p>
-    </section>
     <section id="minimap-panel" class="hud-panel" aria-label="GPS-style local minimap">
       <h2 class="section-title"><span>Navigation</span><span class="mini-tag">LOCAL MAP</span></h2>
       <canvas id="minimap-canvas" width="260" height="260" aria-label="Top-down view of drone, home, obstacles, checkpoint rings and flight path"></canvas>
@@ -277,6 +344,19 @@
     <section class="hud-panel">
       <h2 class="section-title"><span>Live telemetry</span><span class="mini-tag">REAL-TIME</span></h2>
       <div id="flight-hud">Altitude: 5.0 units | Speed: 0.0 u/s | Rings: 0/10</div>
+    </section>
+
+    <section id="dynamics-panel" class="hud-panel" aria-label="Flight dynamics">
+      <h2 class="section-title"><span>Flight dynamics</span><span class="mini-tag">ATTITUDE</span></h2>
+      <div id="attitude-window" aria-label="Artificial horizon"><div id="attitude-indicator"></div></div>
+      <div class="dynamics-grid">
+        <div class="dyn-cell"><span class="dyn-label">PITCH</span><span id="dyn-pitch" class="dyn-value">0°</span></div>
+        <div class="dyn-cell"><span class="dyn-label">ROLL</span><span id="dyn-roll" class="dyn-value">0°</span></div>
+        <div class="dyn-cell"><span class="dyn-label">YAW</span><span id="dyn-yaw" class="dyn-value">0°</span></div>
+        <div class="dyn-cell"><span class="dyn-label">VERTICAL SPEED</span><span id="dyn-vertical" class="dyn-value">0 u/s</span></div>
+        <div class="dyn-cell"><span class="dyn-label">ACCELERATION</span><span id="dyn-acceleration" class="dyn-value">0 u/s²</span></div>
+        <div class="dyn-cell"><span class="dyn-label">AUTOPILOT</span><span id="dyn-autopilot" class="dyn-value">MANUAL</span></div>
+      </div>
     </section>
 
     <section id="camera-panel" class="hud-panel" aria-label="FPV camera gimbal and recording">
@@ -318,19 +398,6 @@
       <div class="muted">Camera: <span id="camera-mode">Third-person</span></div>
     </section>
 
-    <section id="dynamics-panel" class="hud-panel" aria-label="Flight dynamics">
-      <h2 class="section-title"><span>Flight dynamics</span><span class="mini-tag">ATTITUDE</span></h2>
-      <div id="attitude-window" aria-label="Artificial horizon"><div id="attitude-indicator"></div></div>
-      <div class="dynamics-grid">
-        <div class="dyn-cell"><span class="dyn-label">PITCH</span><span id="dyn-pitch" class="dyn-value">0°</span></div>
-        <div class="dyn-cell"><span class="dyn-label">ROLL</span><span id="dyn-roll" class="dyn-value">0°</span></div>
-        <div class="dyn-cell"><span class="dyn-label">YAW</span><span id="dyn-yaw" class="dyn-value">0°</span></div>
-        <div class="dyn-cell"><span class="dyn-label">VERTICAL SPEED</span><span id="dyn-vertical" class="dyn-value">0 u/s</span></div>
-        <div class="dyn-cell"><span class="dyn-label">ACCELERATION</span><span id="dyn-acceleration" class="dyn-value">0 u/s²</span></div>
-        <div class="dyn-cell"><span class="dyn-label">AUTOPILOT</span><span id="dyn-autopilot" class="dyn-value">MANUAL</span></div>
-      </div>
-    </section>
-
     <section id="lidar-panel" class="hud-panel" aria-label="Simulated LiDAR sensors">
       <h2 class="section-title"><span>LiDAR &amp; avoidance</span><span class="mini-tag">5 RAYS</span></h2>
       <p id="lidar-status" role="status">SCANNING</p>
@@ -353,6 +420,12 @@
     </section>
   </aside>
 
+  <div id="fpv-overlay" aria-label="Camera capture overlay">
+    <span id="fpv-overlay-live"><span class="tiny-led"></span> FLIGHT CAMERA</span>
+    <span id="fpv-overlay-metrics">GIMBAL −12° · ZOOM 1.0×</span>
+    <span id="fpv-overlay-rec" hidden>● REC 00:00</span>
+  </div>
+
   <nav id="action-dock" class="glass" aria-label="Quick flight actions">
     <button id="camera-toggle" class="dock-btn" type="button">◉ <span>Switch to FPV (C)</span></button>
     <button id="rth-toggle" class="dock-btn" type="button">⌂ <span>Return home (H)</span></button>
@@ -366,6 +439,51 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <footer id="author-credit"><b>Enhanced by Yug Garg</b><br/>Based on Drone Simulator by eccc20984</footer>
 
+  <script>
+    // Layout toggles are UI-only: main.js retains full flight and recording functionality.
+    (() => {
+      const left = document.getElementById('left-rail');
+      const right = document.getElementById('right-hud');
+      const mapButton = document.getElementById('toggle-map');
+      const instrumentButton = document.getElementById('toggle-instruments');
+      const focusButton = document.getElementById('toggle-focus');
+      function updateLayout() {
+        const leftOpen = !document.body.classList.contains('hide-left');
+        const rightOpen = !document.body.classList.contains('hide-right');
+        left.inert = !leftOpen;
+        right.inert = !rightOpen;
+        mapButton.setAttribute('aria-expanded', String(leftOpen));
+        instrumentButton.setAttribute('aria-expanded', String(rightOpen));
+        const focused = !leftOpen && !rightOpen;
+        focusButton.setAttribute('aria-pressed', String(focused));
+        focusButton.textContent = focused ? '⛶ Exit focus' : '⛶ Focus view';
+      }
+      mapButton.addEventListener('click', () => { document.body.classList.toggle('hide-left'); updateLayout(); });
+      instrumentButton.addEventListener('click', () => { document.body.classList.toggle('hide-right'); updateLayout(); });
+      focusButton.addEventListener('click', () => {
+        const focused = document.body.classList.contains('hide-left') && document.body.classList.contains('hide-right');
+        document.body.classList.toggle('hide-left', !focused);
+        document.body.classList.toggle('hide-right', !focused);
+        updateLayout();
+      });
+      // Compact screens start in focus mode so the flight view remains usable.
+      if (window.innerWidth <= 600) document.body.classList.add('hide-left', 'hide-right');
+      updateLayout();
+      const recIndicator = document.getElementById('record-indicator');
+      const recText = document.getElementById('fpv-overlay-rec');
+      const pitch = document.getElementById('gimbal-pitch-value');
+      const zoom = document.getElementById('gimbal-zoom-value');
+      const metrics = document.getElementById('fpv-overlay-metrics');
+      function updateCameraOverlay() {
+        recText.hidden = getComputedStyle(recIndicator).display === 'none';
+        recText.textContent = '● ' + document.getElementById('record-timer').textContent;
+        metrics.textContent = 'GIMBAL ' + pitch.textContent + ' · ZOOM ' + zoom.textContent;
+      }
+      // Record timer is updated by the 3D animation loop. This overlay mirrors its values.
+      setInterval(updateCameraOverlay, 250);
+      updateCameraOverlay();
+    })();
+  </script>
   <script>
     window.addEventListener('error', event => {
       const el = document.getElementById('error-display');
