@@ -1,7 +1,7 @@
 {
-  "name": "drone-simulator",
+  "name": "drone-simulator-pro",
   "version": "1.0.0",
-  "description": "3D Drone Simulator using Three.js",
+  "description": "Enhanced 3D Drone Simulator by Yug Garg",
   "main": "main.js",
   "scripts": {
     "dev": "vite",
@@ -13,5 +13,6 @@
   },
   "devDependencies": {
     "vite": "^5.0.0"
-  }
-} 
+  },
+  "author": "Yug Garg"
+}
