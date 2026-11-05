@@ -90,6 +90,8 @@
       overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; padding:1px 3px 3px 1px; }
     #minimap-panel { padding:13px; flex-shrink:0; }
     #minimap-canvas { display:block; width:100%; aspect-ratio:1/1; height:auto; background:#10283b; border:1px solid rgba(111,171,203,.36); border-radius:10px; }
+    #osm-attribution {display:block;font-size:10px;line-height:1.5;margin-top:7px;color:#a2ddec;}
+    #osm-attribution[hidden], #osm-data-status[hidden] {display:none;}
     #minimap-position { margin-top:9px; font:700 11px ui-monospace,Consolas,monospace; text-align:center; letter-spacing:.06em; color:var(--accent); }
     .map-legend { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; color:var(--muted); font-size:10px; }
     .legend-dot { width:7px; height:7px; display:inline-block; border-radius:50%; margin-right:5px; }
@@ -193,7 +195,9 @@
       .section-title { font-size:9px; letter-spacing:.07em; margin-bottom:8px; }
       #minimap-panel { padding:7px; }
       .map-legend { grid-template-columns:1fr; font-size:9px; gap:4px; }
-      #minimap-position { font-size:9px; }
+      #osm-attribution {display:block;font-size:10px;line-height:1.5;margin-top:7px;color:#a2ddec;}
+    #osm-attribution[hidden], #osm-data-status[hidden] {display:none;}
+    #minimap-position { font-size:9px; }
       .dyn-value,.lidar-cell strong { font-size:10px; }
       .dynamics-grid,.lidar-grid { gap:4px; }
       .dyn-cell,.lidar-cell { padding:5px; }
@@ -316,6 +320,7 @@
       <h2 class="section-title"><span>Navigation</span><span class="mini-tag">LOCAL MAP</span></h2>
       <canvas id="minimap-canvas" width="260" height="260" aria-label="Top-down view of drone, home, obstacles, checkpoint rings and flight path"></canvas>
       <div id="minimap-position">X 0.0 | Z 0.0</div>
+      <a id="osm-attribution" href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer" target="_blank" hidden>Map data © OpenStreetMap contributors · ODbL</a>
       <div class="map-legend">
         <span><i class="legend-dot" style="background:#38bdf8"></i> Home</span>
         <span><i class="legend-dot" style="background:#fb7185"></i> Drone</span>
@@ -383,13 +388,15 @@
     </section>
 
     <section id="environment-panel" class="hud-panel" aria-label="Select 3D environment">
-      <h2 class="section-title"><span>3D environment</span><span class="mini-tag">05 WORLD TYPES</span></h2>
+      <h2 class="section-title"><span>3D environment</span><span class="mini-tag">06 WORLD TYPES</span></h2>
       <select id="environment-select" aria-label="Choose flight environment">
         <option value="CITY">City</option><option value="FOREST">Forest</option>
         <option value="MOUNTAINS">Mountains</option><option value="DESERT">Desert</option><option value="NIGHT_CITY">Night City</option>
+        <option value="CHANDIGARH_OSM">Chandigarh · Sector 17 (real OSM)</option>
       </select>
       <button type="button" id="environment-next" class="input-btn">Next environment (N)</button>
       <p id="environment-summary" class="muted">Buildings, open streets and training checkpoints.</p>
+      <div id="osm-data-status" class="muted" hidden aria-live="polite"></div>
     </section>
 
     <section id="systems-panel" class="hud-panel" aria-label="Autopilot and camera status">

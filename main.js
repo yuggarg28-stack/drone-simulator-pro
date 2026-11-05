@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fetchChandigarhMap, createChandigarhWorld, createChandigarhMinimapLayer, CHANDIGARH_MAP_HALF_SPAN } from './chandigarh-map.js';
 
 // Drone Simulator Pro — enhancements by Yug Garg.
 // Based on the original Drone Simulator by eccc20984.
@@ -52,6 +53,8 @@ const UI = {
     environmentSelect: document.getElementById('environment-select'),
     environmentNext: document.getElementById('environment-next'),
     environmentSummary: document.getElementById('environment-summary'),
+    osmAttribution: document.getElementById('osm-attribution'),
+    osmDataStatus: document.getElementById('osm-data-status'),
     lidarFront: document.getElementById('lidar-front'),
     lidarLeft: document.getElementById('lidar-left'),
     lidarRight: document.getElementById('lidar-right'),
@@ -245,19 +248,26 @@ ground.updateMatrixWorld(true);
 const obstacleBoxes = []; // THREE.Box3 collision shapes, also used by the simulated LiDAR.
 const environmentProps = []; // meshes/groups to dispose when changing environments
 const environmentLights = [];
-const ENVIRONMENTS = ['CITY', 'FOREST', 'MOUNTAINS', 'DESERT', 'NIGHT_CITY'];
+const ENVIRONMENTS = ['CITY', 'FOREST', 'MOUNTAINS', 'DESERT', 'NIGHT_CITY', 'CHANDIGARH_OSM'];
 const ENV_SETTINGS = {
     CITY: { label:'City', ground:0x27603b, sky:0x87ceeb, fog:0.009, sun:1.3, ambient:0.55, details:'Buildings, open streets and training checkpoints.' },
     FOREST: { label:'Forest', ground:0x34662f, sky:0x9ccbc4, fog:0.012, sun:1.05, ambient:0.65, details:'Evergreen trees and uneven grassy ground.' },
     MOUNTAINS: { label:'Mountains', ground:0x858b83, sky:0xb1d6e9, fog:0.010, sun:1.4, ambient:0.7, details:'Rock formations and elevated terrain.' },
     DESERT: { label:'Desert', ground:0xc8a46a, sky:0xf5c78d, fog:0.010, sun:1.55, ambient:0.70, details:'Sand dunes, boulders and cacti.' },
-    NIGHT_CITY: { label:'Night City', ground:0x1c2638, sky:0x0b122a, fog:0.014, sun:0.16, ambient:0.30, details:'Neon-lit towers and a dark city skyline.' }
+    NIGHT_CITY: { label:'Night City', ground:0x1c2638, sky:0x0b122a, fog:0.014, sun:0.16, ambient:0.30, details:'Neon-lit towers and a dark city skyline.' },
+    CHANDIGARH_OSM: { label:'Chandigarh · Sector 17', ground:0x345d54, sky:0x9dc9df, fog:0.0028, sun:1.4, ambient:0.8, details:'Real OpenStreetMap building footprints and road geometry; estimated heights where needed.' }
 };
 let environmentMode = 'CITY';
+let chandigarhWorld = null;
+let chandigarhMapLayer = null;
+let environmentChangeToken = 0;
+let mapHalfSpan = 100;
+let activeRingCount = 10;
 const baseTerrainHeight = (x, z, env) => {
     if (env === 'MOUNTAINS') return 2.8*Math.sin(x*0.065)*Math.cos(z*0.067) + 3.8*Math.sin(x*0.029+z*0.041);
     if (env === 'DESERT') return 1.7*Math.sin(x*0.055+z*0.023) + 1.25*Math.cos(z*0.065);
     if (env === 'FOREST') return 1.3*Math.sin(x*0.11)*Math.cos(z*0.10);
+    if (env === 'CHANDIGARH_OSM') return 0; // Flat ground; OSM is not an elevation dataset.
     return 0.8*Math.sin(x*0.11)*Math.cos(z*0.10);
 };
 
@@ -287,6 +297,7 @@ const ringPositions = [
     { x: -20, y: 10, z: 0 }, { x: -20, y: 8, z: -10 },
     { x: -10, y: 12, z: -20 }, { x: 0, y: 15, z: -10 }
 ];
+const DEFAULT_RING_POSITIONS = ringPositions.map(p => ({...p}));
 const rings = [];
 for (let i = 0; i < ringPositions.length; i++) {
     const ring = new THREE.Mesh(
@@ -448,9 +459,19 @@ function rebuildRingPositions() {
 }
 function setEnvironment(mode, firstBuild=false) {
     if (!ENV_SETTINGS[mode]) return;
+    const token=++environmentChangeToken;
     clearEnvironment();
+    chandigarhWorld=null;chandigarhMapLayer=null;
+    mapHalfSpan=mode==='CHANDIGARH_OSM'?CHANDIGARH_MAP_HALF_SPAN:100;
+    activeRingCount=rings.length;
+    for (let i=0;i<ringPositions.length;i++) Object.assign(ringPositions[i], DEFAULT_RING_POSITIONS[i]);
+    HOME.x=0; HOME.z=0;
+    UI.osmAttribution.hidden=mode!=='CHANDIGARH_OSM';
+    UI.osmDataStatus.hidden=mode!=='CHANDIGARH_OSM';
+    if(mode==='CHANDIGARH_OSM') UI.osmDataStatus.textContent='Loading locally bundled OpenStreetMap data…';
     environmentMode=mode;
     const preset=ENV_SETTINGS[mode];
+    ground.scale.set(mode==='CHANDIGARH_OSM'?3.2:1,mode==='CHANDIGARH_OSM'?3.2:1,1);
     for(let i=0;i<groundPositions.count;i++) {
         groundPositions.setZ(i,baseTerrainHeight(groundPositions.getX(i),groundPositions.getY(i),mode));
     }
@@ -480,7 +501,7 @@ function setEnvironment(mode, firstBuild=false) {
         }
     }
     HOME.y=terrainY(HOME.x,HOME.z)+DRONE_RADIUS+.12;
-    homePad.position.y=terrainY(0,0)+.05;
+    homePad.position.set(HOME.x,terrainY(HOME.x,HOME.z)+.05,HOME.z);
     rebuildRingPositions();
     // Environment changes restart the flight deliberately, preventing spawning inside obstacles.
     droneState.position.set(0,terrainY(0,0)+5,0);
@@ -502,6 +523,38 @@ function setEnvironment(mode, firstBuild=false) {
     sun.intensity=preset.sun;
     ambient.intensity=preset.ambient;
     updateLiDAR(0,true);
+    if(mode==='CHANDIGARH_OSM') {
+        // Read *actual downloaded OSM data*, not an automatically generated city.
+        // Cancel stale requests if the user changes worlds while loading.
+        fetchChandigarhMap().then(data => {
+            if(token!==environmentChangeToken || environmentMode!=='CHANDIGARH_OSM') return;
+            const world=createChandigarhWorld(data,addProp);
+            chandigarhWorld=world;
+            chandigarhMapLayer=createChandigarhMinimapLayer(world,UI.mapCanvas.width,UI.mapCanvas.height);
+            HOME.set(world.home[0], terrainY(...world.home)+DRONE_RADIUS+.12, world.home[1]);
+            homePad.position.set(HOME.x,terrainY(HOME.x,HOME.z)+.05,HOME.z);
+            droneState.position.set(HOME.x,HOME.y+4.6,HOME.z);
+            droneState.velocity.set(0,0,0);
+            activeRingCount=world.mission.length;
+            for(let i=0;i<rings.length;i++) {
+                if(i<world.mission.length) Object.assign(ringPositions[i],world.mission[i]);
+            }
+            rebuildRingPositions();
+            for(let i=activeRingCount;i<rings.length;i++) rings[i].visible=false;
+            flightPath.length=0; flightPath.push({x:HOME.x,z:HOME.z});
+            rthPhase=null; rthLanded=false; rthAutoAttempted=false;
+            updateLiDAR(0,true);
+            UI.osmDataStatus.textContent=`${world.renderedBuildings} mapped buildings · ${world.roads.length} roads · ${world.estimatedCount} estimated building heights`;
+            UI.environmentSummary.textContent=`Sector 17, Chandigarh · OpenStreetMap footprints and roadways. ${activeRingCount} simulated checkpoints. Not for real flight planning.`;
+            UI.flightStatus.textContent='CHANDIGARH MAP READY — MANUAL';
+            showToast('Chandigarh Sector 17 map loaded from OpenStreetMap');
+        }).catch(error => {
+            if(token!==environmentChangeToken) return;
+            console.error('OSM map load failed:',error);
+            setEnvironment('CITY');
+            showToast('Chandigarh map not loaded. Run node scripts/fetch-chandigarh.mjs and restart Vite.');
+        });
+    }
 }
 
 
@@ -1066,10 +1119,11 @@ function moveWithCollisions(dt, elapsed) {
         droneState.velocity.z *= 0.82;
     }
 
-    // Keep the drone over the original 200 x 200 environment.
-    if (Math.abs(next.x) > 98 || Math.abs(next.z) > 98) {
-        next.x = THREE.MathUtils.clamp(next.x, -98, 98);
-        next.z = THREE.MathUtils.clamp(next.z, -98, 98);
+    // Bounded world: 200x200 for procedural worlds, 640x640 for the OSM extract.
+    const boundary=mapHalfSpan-2;
+    if (Math.abs(next.x) > boundary || Math.abs(next.z) > boundary) {
+        next.x = THREE.MathUtils.clamp(next.x, -boundary, boundary);
+        next.z = THREE.MathUtils.clamp(next.z, -boundary, boundary);
         droneState.velocity.x = 0;
         droneState.velocity.z = 0;
     }
@@ -1158,7 +1212,7 @@ function updateMission(now, dt) {
             ring.visible = false;
             ringsCollected++;
             if (!timerStarted) { timerStarted = true; startTime = now; }
-            if (ringsCollected === rings.length) {
+            if (ringsCollected === activeRingCount) {
                 UI.timer.textContent = `Completed in: ${((now - startTime) / 1000).toFixed(1)}s`;
             }
         }
@@ -1167,7 +1221,7 @@ function updateMission(now, dt) {
             ring.position.y += Math.sin(now * 0.001 + i) * 0.02 * dt * 60;
         }
     });
-    if (timerStarted && ringsCollected < rings.length) {
+    if (timerStarted && ringsCollected < activeRingCount) {
         UI.timer.textContent = `Time: ${((now - startTime) / 1000).toFixed(1)}s`;
     }
 }
@@ -1192,24 +1246,26 @@ function drawMinimap(dt) {
     const ctx = mapContext;
     const width = UI.mapCanvas.width;
     const height = UI.mapCanvas.height;
-    const toX = x => (x + 100) * width / 200;
-    const toY = z => (z + 100) * height / 200;
+    const toX = x => (x + mapHalfSpan) * width / (mapHalfSpan*2);
+    const toY = z => (z + mapHalfSpan) * height / (mapHalfSpan*2);
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#102737';
-    ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = '#2d495c';
-    ctx.lineWidth = 1;
-    for (let n = -100; n <= 100; n += 25) {
-        ctx.beginPath(); ctx.moveTo(toX(n), 0); ctx.lineTo(toX(n), height); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, toY(n)); ctx.lineTo(width, toY(n)); ctx.stroke();
-    }
-
-    // Draw the current environment's actual collision boxes.
-    ctx.fillStyle = environmentMode==='FOREST'?'#4a9b66':environmentMode==='DESERT'?'#bf8550':environmentMode==='MOUNTAINS'?'#9da3aa':'#66899b';
-    for (const box of obstacleBoxes) {
-        ctx.fillRect(toX(box.min.x), toY(box.min.z),
-            (box.max.x - box.min.x) * width / 200,
-            (box.max.z - box.min.z) * height / 200);
+    if (environmentMode==='CHANDIGARH_OSM' && chandigarhMapLayer) {
+        ctx.drawImage(chandigarhMapLayer,0,0);
+    } else {
+        ctx.fillStyle = '#102737';
+        ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = '#2d495c';
+        ctx.lineWidth = 1;
+        for (let n = -mapHalfSpan; n <= mapHalfSpan; n += 25) {
+            ctx.beginPath(); ctx.moveTo(toX(n), 0); ctx.lineTo(toX(n), height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, toY(n)); ctx.lineTo(width, toY(n)); ctx.stroke();
+        }
+        ctx.fillStyle = environmentMode==='FOREST'?'#4a9b66':environmentMode==='DESERT'?'#bf8550':environmentMode==='MOUNTAINS'?'#9da3aa':'#66899b';
+        for (const box of obstacleBoxes) {
+            ctx.fillRect(toX(box.min.x), toY(box.min.z),
+                (box.max.x - box.min.x) * width / (mapHalfSpan*2),
+                (box.max.z - box.min.z) * height / (mapHalfSpan*2));
+        }
     }
 
     // Remaining race checkpoint locations.
@@ -1248,12 +1304,14 @@ function drawMinimap(dt) {
 
     ctx.fillStyle = '#e2e8f0'; ctx.font = '12px Arial';
     ctx.fillText('N', width / 2 - 5, 15);
-    UI.mapPosition.textContent = `X ${droneState.position.x.toFixed(1)} | Z ${droneState.position.z.toFixed(1)}`;
+    UI.mapPosition.textContent = environmentMode==='CHANDIGARH_OSM'
+        ? `OSM Chandigarh · X ${droneState.position.x.toFixed(1)} / Z ${droneState.position.z.toFixed(1)}`
+        : `X ${droneState.position.x.toFixed(1)} | Z ${droneState.position.z.toFixed(1)}`;
 }
 
 function updateHUD(elapsed) {
     const relativeAltitude = droneState.position.y - groundHeightAt(droneState.position.x, droneState.position.z);
-    UI.telemetry.textContent = `Altitude: ${relativeAltitude.toFixed(1)} units | Speed: ${droneState.velocity.length().toFixed(1)} u/s | Rings: ${ringsCollected}/${rings.length}`;
+    UI.telemetry.textContent = `Altitude: ${relativeAltitude.toFixed(1)} units | Speed: ${droneState.velocity.length().toFixed(1)} u/s | Rings: ${ringsCollected}/${activeRingCount}`;
     UI.healthPercent.textContent = `${Math.ceil(health)}%`;
     UI.healthFill.style.width = `${health}%`;
     UI.healthFill.style.background = health <= 30 ? '#ef4444' : health <= 60 ? '#facc15' : '#22c55e';
