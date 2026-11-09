@@ -52,10 +52,9 @@ node server.js
 - ESC - Release mouse
 ## Credits
 
-Enhanced and maintained by Yug Garg.
+Developed by Yug Garg.
 
-Based on the original Drone Simulator by eccc20984:
-https://github.com/eccc20984/drone-simulator
+
 
 ## Technologies Used
 
